@@ -12,15 +12,6 @@ class Openconnect < Formula
     regex(/href=.*?openconnect[._-]v?(\d+(?:\.\d+)+)\.t/i)
   end
 
-  bottle do
-    sha256 arm64_monterey: "6dc4bcb064f2682ec83df05e98ebdc4c01bb393311ecc4d60f70574ac5dc6091"
-    sha256 arm64_big_sur:  "2eeb96ab48ce2e23288d738575415a9cca7356d2ef82f6dbe5c076ba85242422"
-    sha256 monterey:       "a5cada9bca9cc64b03ee450d06d4064edc2a55896c4b5518b558aaa68ea86b04"
-    sha256 big_sur:        "cdcbb4640fee08eb17685920cc0af6d5c74989296d222c6f21c6b51a49f319bf"
-    sha256 catalina:       "4653dc9700dc255351900b68baa48c3da01eabe5b83a42384744f825bd4a13a3"
-    sha256 x86_64_linux:   "2f6ef9a3246f5bb6e134c50e68d45c9515b7d5529be624dcfb9b4b261b6a5e4b"
-  end
-
   head do
     url "git://git.infradead.org/users/dwmw2/openconnect.git", branch: "master"
 
