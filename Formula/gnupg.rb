@@ -1,9 +1,10 @@
 class Gnupg < Formula
   desc "GNU Pretty Good Privacy (PGP) package"
   homepage "https://gnupg.org/"
-  url "https://gnupg.org/ftp/gcrypt/gnupg/gnupg-2.3.8.tar.bz2"
-  sha256 "540b7a40e57da261fb10ef521a282e0021532a80fd023e75fb71757e8a4969ed"
+  url "https://gnupg.org/ftp/gcrypt/gnupg/gnupg-2.4.5.tar.bz2"
+  sha256 "f68f7d75d06cb1635c336d34d844af97436c3f64ea14bcb7c869782f96f44277"
   license "GPL-3.0-or-later"
+  revision 1
 
   livecheck do
     url "https://gnupg.org/ftp/gcrypt/gnupg/"
@@ -11,7 +12,6 @@ class Gnupg < Formula
   end
 
   depends_on "pkg-config" => :build
-  depends_on "gettext"
   depends_on "gnutls"
   depends_on "libassuan"
   depends_on "libgcrypt"
@@ -20,19 +20,15 @@ class Gnupg < Formula
   depends_on "libusb"
   depends_on "npth"
   depends_on "pinentry"
+  depends_on "readline"
 
+  uses_from_macos "bzip2"
+  uses_from_macos "openldap"
   uses_from_macos "sqlite", since: :catalina
+  uses_from_macos "zlib"
 
-  on_linux do
-    depends_on "libidn"
-  end
-
-  # Fixes a build failure without ldap.
-  # Committed upstream, will be in the next release.
-  # https://dev.gnupg.org/T6239
-  patch do
-    url "https://dev.gnupg.org/rG7011286ce6e1fb56c2989fdafbd11b931c489faa?diff=1"
-    sha256 "407011d4ae9799f50008b431df60cd5b781dca0f572e956fd46245aa209af7e8"
+  on_macos do
+    depends_on "gettext"
   end
 
   patch :DATA
@@ -41,16 +37,16 @@ class Gnupg < Formula
     libusb = Formula["libusb"]
     ENV.append "CPPFLAGS", "-I#{libusb.opt_include}/libusb-#{libusb.version.major_minor}"
 
-    system "./configure", "--disable-dependency-tracking",
-                          "--disable-silent-rules",
-                          "--prefix=#{prefix}",
-                          "--sbindir=#{bin}",
-                          "--sysconfdir=#{etc}",
-                          "--enable-all-tests",
-                          "--with-pinentry-pgm=#{Formula["pinentry"].opt_bin}/pinentry"
-    system "make"
-    system "make", "check"
-    system "make", "install"
+    mkdir "build" do
+      system "../configure", *std_configure_args,
+             "--disable-silent-rules",
+             "--sysconfdir=#{etc}",
+             "--enable-all-tests",
+             "--with-pinentry-pgm=#{Formula["pinentry"].opt_bin}/pinentry"
+      system "make"
+      system "make", "check"
+      system "make", "install"
+    end
 
     # Configure scdaemon as recommended by upstream developers
     # https://dev.gnupg.org/T5415#145864
@@ -93,10 +89,10 @@ end
 
 __END__
 diff --git a/scd/app-openpgp.c b/scd/app-openpgp.c
-index e445b24..f3286d3 100644
+index 1f5d64e..1573954 100644
 --- a/scd/app-openpgp.c
 +++ b/scd/app-openpgp.c
-@@ -5361,6 +5361,9 @@ do_sign (app_t app, ctrl_t ctrl, const char *keyidstr, int hashalgo,
+@@ -5461,6 +5461,9 @@ do_sign (app_t app, ctrl_t ctrl, const char *keyidstr, int hashalgo,
        wipe_and_free (pinvalue, pinlen);
      }
  
@@ -106,7 +102,7 @@ index e445b24..f3286d3 100644
  
    if (app->app_local->cardcap.ext_lc_le
        && app->app_local->keyattr[0].key_type == KEY_TYPE_RSA
-@@ -5384,6 +5387,10 @@ do_sign (app_t app, ctrl_t ctrl, const char *keyidstr, int hashalgo,
+@@ -5484,6 +5487,10 @@ do_sign (app_t app, ctrl_t ctrl, const char *keyidstr, int hashalgo,
        cache_pin (app, ctrl, 1, NULL);
      }
  
@@ -117,7 +113,7 @@ index e445b24..f3286d3 100644
    return rc;
  }
  
-@@ -5546,9 +5553,19 @@ do_auth (app_t app, ctrl_t ctrl, const char *keyidstr,
+@@ -5646,9 +5653,19 @@ do_auth (app_t app, ctrl_t ctrl, const char *keyidstr,
            exmode = 0;
            le_value = 0;
          }
@@ -137,7 +133,7 @@ index e445b24..f3286d3 100644
        if (gpg_err_code (rc) == GPG_ERR_TIMEOUT)
          clear_chv_status (app, ctrl, 1);
  
-@@ -5830,10 +5847,20 @@ do_decipher (app_t app, ctrl_t ctrl, const char *keyidstr,
+@@ -5930,10 +5947,19 @@ do_decipher (app_t app, ctrl_t ctrl, const char *keyidstr,
    else
      exmode = le_value = 0;
  
@@ -154,31 +150,30 @@ index e445b24..f3286d3 100644
 +  if (opt.ack_prompt)
 +    pincb (pincb_arg, NULL, NULL);
 +
-+
    if (!rc && app->app_local->keyattr[1].key_type == KEY_TYPE_ECC)
      {
        unsigned char prefix = 0;
 diff --git a/scd/scdaemon.c b/scd/scdaemon.c
-index e43769f..b12540c 100644
+index 1a8705b..5915163 100644
 --- a/scd/scdaemon.c
 +++ b/scd/scdaemon.c
-@@ -102,6 +102,7 @@ enum cmd_and_opt_values
+@@ -103,6 +103,7 @@ enum cmd_and_opt_values
    oDenyAdmin,
    oDisableApplication,
    oApplicationPriority,
 +  oAckPrompt,
    oEnablePinpadVarlen,
+   oCompatibilityFlags,
    oListenBacklog
- };
-@@ -170,6 +171,7 @@ static gpgrt_opt_t opts[] = {
-   ARGPARSE_s_s (oDisableApplication, "disable-application", "@"),
+@@ -174,6 +175,7 @@ static gpgrt_opt_t opts[] = {
    ARGPARSE_s_s (oApplicationPriority, "application-priority",
                  N_("|LIST|change the application priority to LIST")),
+   ARGPARSE_s_s (oCompatibilityFlags, "compatibility-flags", "@"),
 +  ARGPARSE_s_n (oAckPrompt, "ack-prompt", N_("display ACK prompt while waiting for card")),
    ARGPARSE_s_i (oListenBacklog, "listen-backlog", "@"),
  
  
-@@ -611,6 +613,8 @@ main (int argc, char **argv )
+@@ -626,6 +628,8 @@ main (int argc, char **argv )
  
          case oDisablePinpad: opt.disable_pinpad = 1; break;
  
@@ -188,7 +183,7 @@ index e43769f..b12540c 100644
            break;
          case oDenyAdmin: opt.allow_admin = 0; break;
 diff --git a/scd/scdaemon.h b/scd/scdaemon.h
-index 68136b8..5a63e24 100644
+index 16873c5..244ae3a 100644
 --- a/scd/scdaemon.h
 +++ b/scd/scdaemon.h
 @@ -60,6 +60,7 @@ struct
